@@ -414,6 +414,7 @@ def main():
     # test_split_idx  = int(1.0 * len(d1['lyrics']))
 
     indices = list(range(len(d1['lyrics'])))
+    random.seed(1234)
     random.shuffle(indices)
 
     train_idx = indices[:train_split_idx]
