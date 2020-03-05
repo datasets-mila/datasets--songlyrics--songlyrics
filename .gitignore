@@ -1,1 +1,5 @@
 .nfs*
+*.jugdata/
+songlyrics_*/
+extract/
+*.out
