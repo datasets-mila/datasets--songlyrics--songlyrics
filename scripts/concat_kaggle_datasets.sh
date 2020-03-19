@@ -24,6 +24,10 @@ export NLTK_DATA=./nltk_data
 mkdir -p $NLTK_DATA
 
 python scripts/concat_kaggle_datasets.py
+python scripts/add_tfidf_keyword.py
+
+mkdir -p gpt
+python scripts/prepare_for_gpt.py
 
 # Clean up
 

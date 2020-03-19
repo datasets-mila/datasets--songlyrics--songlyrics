@@ -192,13 +192,15 @@ def extract_kaggle_gyani95_songlyrics():
         lyrics[index] = '\n'.join(sentences)
 
         ###
-        # regularize artist & title names
+        # regularize genre & artist & title
         ###
+        genres[index] = genres[index].strip().lower().replace(' ', '_').replace('-', '_')
+
         artists[index] = artists[index].strip().lower().replace(' ', '_').replace('-', '_')
         if 'leonard' in artists[index] and 'cohen' in artists[index]:
             lc_songs += 1
 
-        titles[index] = titles[index].strip().lower()
+        titles[index] = titles[index].strip().lower().replace('-', ' ')  # undo the processing from this csv file
         # replace all bad words by <unk> in title
         for b_w in BAD_WORDS:
             if b_w.lower().strip() in titles[index].split():
@@ -214,7 +216,7 @@ def extract_kaggle_gyani95_songlyrics():
     print("avg. #of sentences per song:", n_sentences)
     print("#of leonard cohen songs:", lc_songs)
 
-    return artists, titles, lyrics
+    return artists, titles, genres, lyrics
 
 
 def extract_kaggle_artimous_songlyrics():
@@ -320,7 +322,7 @@ def get_unique_indices(items):
     for index, element in enumerate(items):
         uniques[element].append(index)
 
-    return [indices[0] for indices in uniques.values()]
+    return [indices[0] for indices in uniques.values()]  # return the index of the first occurrence for every duplicate
 
 
 def main():
@@ -332,8 +334,9 @@ def main():
     # Read each file and create a list of songs in a json file
     #
     artists, titles, lyrics = extract_kaggle_mousehead_songlyrics()
+    genres = ['unknown']*len(titles)
     write_songs_to_file(
-        {'artists': artists, 'titles': titles, 'lyrics': lyrics},
+        {'artists': artists, 'titles': titles, 'lyrics': lyrics, 'genres': genres},
         'kaggle_mousehead_songlyrics.json'
     )
     print("number of songs:", len(lyrics))
@@ -341,13 +344,13 @@ def main():
     random.shuffle(idx)
     print("a few songs...")
     for i in idx[:5]:
-        print('#', i, '- ARTIST:', artists[i], '- TITLE:', titles[i])
+        print('#', i, '- ARTIST:', artists[i], '- TITLE:', titles[i], '- GENRE:', genres[i])
         print(lyrics[i])
     print("---------------------------------------")
 
-    artists, titles, lyrics = extract_kaggle_gyani95_songlyrics()
+    artists, titles, genres, lyrics = extract_kaggle_gyani95_songlyrics()
     write_songs_to_file(
-        {'artists': artists, 'titles': titles, 'lyrics': lyrics},
+        {'artists': artists, 'titles': titles, 'lyrics': lyrics, 'genres': genres},
         'kaggle_gyani95_songlyrics.json'
     )
     print("number of songs:", len(lyrics))
@@ -355,13 +358,14 @@ def main():
     random.shuffle(idx)
     print("a few songs...")
     for i in idx[:5]:
-        print('#', i, '- ARTIST:', artists[i], '- TITLE:', titles[i])
+        print('#', i, '- ARTIST:', artists[i], '- TITLE:', titles[i], '- GENRE:', genres[i])
         print(lyrics[i])
     print("---------------------------------------")
 
     artists, titles, lyrics = extract_kaggle_artimous_songlyrics()
+    genres = ['unknown'] * len(titles)
     write_songs_to_file(
-        {'artists': artists, 'titles': titles, 'lyrics': lyrics},
+        {'artists': artists, 'titles': titles, 'lyrics': lyrics, 'genres': genres},
         'kaggle_artimous_songlyrics.json'
     )
     print("number of songs:", len(lyrics))
@@ -369,12 +373,14 @@ def main():
     random.shuffle(idx)
     print("a few songs...")
     for i in idx[:5]:
-        print('#', i, '- ARTIST:', artists[i], '- TITLE:', titles[i])
+        print('#', i, '- ARTIST:', artists[i], '- TITLE:', titles[i], 'GENRE:', genres[i])
         print(lyrics[i])
     print("---------------------------------------")
 
     # lyrics4 = extract_kaggle_paultimothymooney_songlyrics()
     # write_songs_to_file(lyrics4, 'kaggle_paultimothymooney_songlyrics.json')
+
+    del artists, titles, genres, lyrics
 
     # -------
     # STEP 2:
@@ -386,22 +392,25 @@ def main():
     d2 = read_song_from_file('kaggle_gyani95_songlyrics.json')
     d3 = read_song_from_file('kaggle_artimous_songlyrics.json')
 
-    for key, values in d1.items():
-        values.extend(d2[key])
+    # append to d2 bcs that's the dict with a bunch of GENRES so when removing duplicates
+    # we will keep the first ones, the ones from d2, the ones with a genre
+    for key, values in d2.items():
+        values.extend(d1[key])
         values.extend(d3[key])
-    del d2, d3
+    del d1, d3
 
-    print("Total number of songs:", (len(d1['lyrics'])))
+    print("Total number of songs:", (len(d2['lyrics'])))
 
-    unique_indices = get_unique_indices(d1['lyrics'])
-    d1['artists'] = [d1['artists'][i] for i in unique_indices]
-    d1['titles'] = [d1['titles'][i] for i in unique_indices]
-    d1['lyrics'] = [d1['lyrics'][i] for i in unique_indices]
+    unique_indices = get_unique_indices(d2['lyrics'])
+    d2['artists'] = [d2['artists'][i] for i in unique_indices]
+    d2['titles'] = [d2['titles'][i] for i in unique_indices]
+    d2['lyrics'] = [d2['lyrics'][i] for i in unique_indices]
+    d2['genres'] = [d2['genres'][i] for i in unique_indices]
 
-    assert len(d1['artists']) == len(d1['titles']) == len(d1['lyrics']) == len(unique_indices)
+    assert len(d2['artists']) == len(d2['titles']) == len(d2['lyrics']) == len(d2['genres']) == len(unique_indices)
     print("Number of unique songs:", len(unique_indices))
     print("Number of leonard cohen songs:", len(list(
-        filter(lambda a: 'leonard' in a and 'cohen' in a, d1['artists'])
+        filter(lambda a: 'leonard' in a and 'cohen' in a, d2['artists'])
     )))
 
     # -------
@@ -409,12 +418,12 @@ def main():
     # -------
     # Split into train / valid / test set
     #
-    train_split_idx = int(0.8 * len(d1['lyrics']))
-    valid_split_idx = int(0.9 * len(d1['lyrics']))
-    # test_split_idx  = int(1.0 * len(d1['lyrics']))
+    train_split_idx = int(0.8 * len(d2['lyrics']))
+    valid_split_idx = int(0.9 * len(d2['lyrics']))
+    # test_split_idx  = int(1.0 * len(d2['lyrics']))
 
-    indices = list(range(len(d1['lyrics'])))
     random.seed(1234)
+    indices = list(range(len(d2['lyrics'])))
     random.shuffle(indices)
 
     train_idx = indices[:train_split_idx]
@@ -422,20 +431,24 @@ def main():
     test_idx  = indices[valid_split_idx:]
 
     train_songs = {
-        'artists': [d1['artists'][i] for i in train_idx],
-        'titles': [d1['titles'][i] for i in train_idx],
-        'lyrics': [d1['lyrics'][i] for i in train_idx]
+        'artists': [d2['artists'][i] for i in train_idx],
+        'titles': [d2['titles'][i] for i in train_idx],
+        'lyrics': [d2['lyrics'][i] for i in train_idx],
+        'genres': [d2['genres'][i] for i in train_idx]
     }
     valid_songs = {
-        'artists': [d1['artists'][i] for i in valid_idx],
-        'titles': [d1['titles'][i] for i in valid_idx],
-        'lyrics': [d1['lyrics'][i] for i in valid_idx]
+        'artists': [d2['artists'][i] for i in valid_idx],
+        'titles': [d2['titles'][i] for i in valid_idx],
+        'lyrics': [d2['lyrics'][i] for i in valid_idx],
+        'genres': [d2['genres'][i] for i in valid_idx]
     }
     test_songs = {
-        'artists': [d1['artists'][i] for i in test_idx],
-        'titles': [d1['titles'][i] for i in test_idx],
-        'lyrics': [d1['lyrics'][i] for i in test_idx]
+        'artists': [d2['artists'][i] for i in test_idx],
+        'titles': [d2['titles'][i] for i in test_idx],
+        'lyrics': [d2['lyrics'][i] for i in test_idx],
+        'genres': [d2['genres'][i] for i in test_idx]
     }
+    del d2
 
     print("Number of train songs:", len(train_idx))
     print("Number of train l.c. songs:", len(list(
