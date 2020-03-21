@@ -1,0 +1,4 @@
+[submodule "bin/fastBPE"]
+	path = bin/fastBPE
+	url = https://github.com/glample/fastBPE
+	ignore = dirty
